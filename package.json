@@ -1,0 +1,13 @@
+{
+  "name": "monitor-proposicoes-cmpa",
+  "version": "1.0.0",
+  "description": "Monitor automático de proposições da Câmara Municipal de Porto Alegre",
+  "main": "monitor.js",
+  "scripts": {
+    "start": "node monitor.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0",
+    "cheerio": "^1.0.0"
+  }
+}

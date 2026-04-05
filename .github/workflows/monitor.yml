@@ -1,0 +1,48 @@
+name: Monitor Proposições CMPA
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 08:00 BRT
+    - cron: '0 15 * * *'   # 12:00 BRT
+    - cron: '0 20 * * *'   # 17:00 BRT
+    - cron: '0 0 * * *'    # 21:00 BRT
+  workflow_dispatch:
+
+jobs:
+  monitorar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Executar monitor
+        env:
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
+          EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINO }}
+        run: node monitor.js
+
+      - name: Salvar estado atualizado no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain estado.json)" ]; then
+            git add estado.json
+            git commit -m "chore: atualiza estado [skip ci]"
+            git push
+          else
+            echo "Nenhuma alteração no estado.json"
+          fi
