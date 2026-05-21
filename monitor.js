@@ -229,7 +229,7 @@ async function enviarEmail(novas) {
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:1000px;margin:0 auto">
       <h2 style="color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px">
-        🏛️ CMPA — ${novas.length} nova(s) proposição(ões)
+        🏛️ Câmara Municipal de Porto Alegre — ${novas.length} nova(s) proposição(ões)
       </h2>
       <p style="color:#666;font-size:13px">
         Monitoramento automático — ${new Date().toLocaleString('pt-BR')}
@@ -248,15 +248,15 @@ async function enviarEmail(novas) {
         <tbody>${linhas}</tbody>
       </table>
       <p style="margin-top:20px;font-size:12px;color:#999">
-        Portal: <a href="https://www.camarapoa.rs.gov.br/projetos">camarapoa.rs.gov.br/projetos</a>
+        Portal: <a href="https://www.camarapoa.rs.gov.br/projetos">Câmara Municipal de Porto Alegre</a>
       </p>
     </div>
   `;
 
   await transporter.sendMail({
-    from: `"Monitor CMPA" <${EMAIL_REMETENTE}>`,
+    from: `"Monitor Porto Alegre" <${EMAIL_REMETENTE}>`,
     to: EMAIL_DESTINO,
-    subject: `🏛️ CMPA: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`,
+    subject: `🏛️ Porto Alegre: ${novas.length} nova(s) proposição(ões) — ${new Date().toLocaleDateString('pt-BR')}`,
     html,
   });
 
