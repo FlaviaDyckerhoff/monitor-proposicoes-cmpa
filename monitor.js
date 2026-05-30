@@ -184,6 +184,26 @@ async function buscarTodasProposicoes() {
   return todas;
 }
 
+function prioridadeTipoEmail(tipo) {
+  const t = String(tipo || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+
+  if (/^(PL|PLO)(\b|$)/.test(t) || /^PROJETO DE LEI( ORDINARIA)?$/.test(t)) return 0;
+  if (/^PLC(\b|$)/.test(t) || /^PROJETO DE LEI COMPLEMENTAR/.test(t)) return 1;
+  if (/^PEC(\b|$)/.test(t) || /^(PROPOSTA|PROJETO) DE EMENDA (A )?CONSTITUCIONAL/.test(t)) return 2;
+  return 10;
+}
+
+function compararTiposEmail(a, b) {
+  const prioridadeA = prioridadeTipoEmail(a);
+  const prioridadeB = prioridadeTipoEmail(b);
+  if (prioridadeA !== prioridadeB) return prioridadeA - prioridadeB;
+  return String(a || '').localeCompare(String(b || ''), 'pt-BR');
+}
+
 async function enviarEmail(novas) {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -204,7 +224,7 @@ async function enviarEmail(novas) {
        </div>`
     : '';
 
-  const linhas = Object.keys(porTipo).sort().map(tipo => {
+  const linhas = Object.keys(porTipo).sort(compararTiposEmail).map(tipo => {
     const header = `<tr>
       <td colspan="5" style="padding:10px 8px 4px;background:#f0f4f8;font-weight:bold;color:#1a3a5c;font-size:13px;border-top:2px solid #1a3a5c">
         ${tipo} — ${porTipo[tipo].length} proposição(ões)
