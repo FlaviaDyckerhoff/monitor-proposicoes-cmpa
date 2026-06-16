@@ -184,6 +184,26 @@ async function buscarTodasProposicoes() {
   return todas;
 }
 
+function deduplicarProposicoes(proposicoes) {
+  const porId = new Map();
+  let duplicadas = 0;
+
+  for (const proposicao of proposicoes) {
+    if (!proposicao?.id) continue;
+    if (porId.has(String(proposicao.id))) {
+      duplicadas++;
+      continue;
+    }
+    porId.set(String(proposicao.id), proposicao);
+  }
+
+  if (duplicadas > 0) {
+    console.log(`🧹 Dedupe: ${duplicadas} ocorrência(s) repetida(s) removida(s) da coleta.`);
+  }
+
+  return Array.from(porId.values());
+}
+
 function prioridadeTipoEmail(tipo) {
   const t = String(tipo || '')
     .normalize('NFD')
@@ -322,14 +342,15 @@ async function enviarEmail(novas) {
   const estado = carregarEstado();
   const idsVistos = new Set(estado.proposicoes_vistas.map(String));
 
-  const todas = await buscarTodasProposicoes();
+  const todasColetadas = await buscarTodasProposicoes();
+  const todas = deduplicarProposicoes(todasColetadas);
 
   if (todas.length === 0) {
     console.log('⚠️ Nenhuma proposição encontrada. Verifique se o site está acessível.');
     process.exit(0);
   }
 
-  console.log(`\n📊 Total coletado: ${todas.length} proposições`);
+  console.log(`\n📊 Total coletado: ${todasColetadas.length} ocorrência(s); ${todas.length} proposições única(s)`);
 
   const novas = todas.filter(p => !idsVistos.has(p.id));
   console.log(`🆕 Proposições novas: ${novas.length}`);
