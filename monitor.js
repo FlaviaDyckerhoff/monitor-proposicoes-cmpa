@@ -204,6 +204,18 @@ function deduplicarProposicoes(proposicoes) {
   return Array.from(porId.values());
 }
 
+function filtrarProposicoesDoAnoAtual(proposicoes) {
+  const anoAtual = String(new Date().getFullYear());
+  const filtradas = proposicoes.filter(p => String(p.ano || '') === anoAtual);
+  const antigas = proposicoes.length - filtradas.length;
+
+  if (antigas > 0) {
+    console.log(`🗓️ Filtro de ano: ${antigas} proposição(ões) de anos anteriores removida(s) do email de novas proposições.`);
+  }
+
+  return filtradas;
+}
+
 function prioridadeTipoEmail(tipo) {
   const t = String(tipo || '')
     .normalize('NFD')
@@ -343,14 +355,15 @@ async function enviarEmail(novas) {
   const idsVistos = new Set(estado.proposicoes_vistas.map(String));
 
   const todasColetadas = await buscarTodasProposicoes();
-  const todas = deduplicarProposicoes(todasColetadas);
+  const todasUnicas = deduplicarProposicoes(todasColetadas);
+  const todas = filtrarProposicoesDoAnoAtual(todasUnicas);
 
   if (todas.length === 0) {
     console.log('⚠️ Nenhuma proposição encontrada. Verifique se o site está acessível.');
     process.exit(0);
   }
 
-  console.log(`\n📊 Total coletado: ${todasColetadas.length} ocorrência(s); ${todas.length} proposições única(s)`);
+  console.log(`\n📊 Total coletado: ${todasColetadas.length} ocorrência(s); ${todasUnicas.length} proposições única(s); ${todas.length} do ano atual`);
 
   const novas = todas.filter(p => !idsVistos.has(p.id));
   console.log(`🆕 Proposições novas: ${novas.length}`);
