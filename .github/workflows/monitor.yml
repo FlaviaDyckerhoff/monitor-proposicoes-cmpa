@@ -4,8 +4,6 @@ env:
   TZ: America/Sao_Paulo
 
 on:
-  schedule:
-    - cron: '26 8 * * 1-5'   # 05:26 BRT
   workflow_dispatch:
 
 jobs:
