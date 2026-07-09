@@ -1,0 +1,53 @@
+name: Radar de Pautas CMPA
+
+env:
+  TZ: America/Sao_Paulo
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 10,16,20 * * 1-5'
+
+concurrency:
+  group: radar-pautas-cmpa
+  cancel-in-progress: false
+
+jobs:
+  radar-pautas:
+    runs-on: self-hosted
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Executar Radar de Pautas CMPA
+        env:
+          EMAIL_REMETENTE: ${{ secrets.EMAIL_REMETENTE }}
+          EMAIL_SENHA: ${{ secrets.EMAIL_SENHA }}
+          EMAIL_DESTINO: ${{ secrets.EMAIL_DESTINO }}
+          CMPA_PAUTAS_LOOKAHEAD_DIAS: '14'
+        run: node monitor-pautas.js
+
+      - name: Salvar estado atualizado no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain estado_pautas.json)" ]; then
+            git add estado_pautas.json
+            git commit -m "chore: atualiza estado de pautas [skip ci]"
+            git push
+          else
+            echo "Nenhuma alteração no estado_pautas.json"
+          fi
