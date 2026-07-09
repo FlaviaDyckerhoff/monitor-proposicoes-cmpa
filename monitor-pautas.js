@@ -98,15 +98,15 @@ async function buscarPlenario() {
   const $ = cheerio.load(await get(BASE + '/sessoes_plenarias'));
   const itens = [];
   const vistos = new Set();
-  $('a[href*="/sessoes_plenarias/"]').each(function () {
-    const a = $(this);
+  $('section.ui.relaxed.divided.items article.item').each(function () {
+    const article = $(this);
+    const a = article.find('a[href^="/sessoes_plenarias/"]').first();
     const href = a.attr('href');
     const url = absoluto(href, BASE);
     const id = (url.match(/sessoes_plenarias\/(\d+)/) || [null, ''])[1];
     if (!id || vistos.has(id)) return;
     vistos.add(id);
-    const rowText = a.closest('tr, article, div').text().replace(/\s+/g, ' ').trim();
-    const around = rowText || a.parent().text().replace(/\s+/g, ' ').trim() || a.text().replace(/\s+/g, ' ').trim();
+    const around = article.find('.description').text().replace(/\s+/g, ' ').trim();
     const data = parseDataBR(around);
     if (!dentroDaJanela(data)) return;
     itens.push({
