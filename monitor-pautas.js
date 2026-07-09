@@ -5,6 +5,7 @@ const cheerio = require('cheerio');
 const EMAIL_DESTINO = process.env.EMAIL_DESTINO;
 const EMAIL_REMETENTE = process.env.EMAIL_REMETENTE;
 const EMAIL_SENHA = process.env.EMAIL_SENHA;
+const DRY_RUN = process.env.CMPA_PAUTAS_DRY_RUN === '1' || process.argv.includes('--dry-run');
 const ARQUIVO_ESTADO = 'estado_pautas.json';
 const LOOKAHEAD_DIAS = Number(process.env.CMPA_PAUTAS_LOOKAHEAD_DIAS || 14);
 const BASE = 'https://www.camarapoa.rs.gov.br';
@@ -123,7 +124,77 @@ async function buscarPlenario() {
   return itens;
 }
 
+async function buscarNoticiasInstitucionais() {
+  const url = BASE + '/noticias/institucionais';
+  const $ = cheerio.load(await get(url));
+  const itens = [];
+  const vistos = new Set();
+  $('article.item, .ui.items .item, .news-item, .noticia, main a[href^="/noticias/"]').each(function () {
+    const bloco = $(this);
+    const a = bloco.is('a') ? bloco : bloco.find('a[href^="/noticias/"]').first();
+    const href = a.attr('href');
+    const urlItem = absoluto(href, BASE);
+    if (!urlItem || vistos.has(urlItem)) return;
+    vistos.add(urlItem);
+    const titulo = a.text().replace(/\s+/g, ' ').trim() || bloco.find('.header,h2,h3').first().text().replace(/\s+/g, ' ').trim();
+    if (!titulo) return;
+    const texto = bloco.text().replace(/\s+/g, ' ').trim();
+    const data = parseDataBR(texto);
+    if (!dentroDaJanela(data || new Date())) return;
+    itens.push({
+      id: 'noticia-' + urlItem,
+      origem: 'Notícia institucional',
+      data: data || new Date(),
+      dataTexto: data ? formatarData(data) : '-',
+      titulo,
+      descricao: texto.slice(0, 500) || 'Notícia institucional da CMPA usada como fallback do Radar de Pautas.',
+      proponente: 'CMPA',
+      url: urlItem
+    });
+  });
+  return itens.slice(0, 10);
+}
+
+async function buscarAudienciasPublicas() {
+  const url = BASE + '/audiencias_publicas';
+  const $ = cheerio.load(await get(url));
+  const itens = [];
+  const vistos = new Set();
+  $('article.item, .ui.items .item, main a[href*="/audiencias_publicas"]').each(function () {
+    const bloco = $(this);
+    const a = bloco.is('a') ? bloco : bloco.find('a[href*="/audiencias_publicas"]').first();
+    const href = a.attr('href');
+    const urlItem = absoluto(href, BASE);
+    if (!urlItem || urlItem === url || vistos.has(urlItem)) return;
+    vistos.add(urlItem);
+    const titulo = a.text().replace(/\s+/g, ' ').trim() || bloco.find('.header,h2,h3').first().text().replace(/\s+/g, ' ').trim();
+    if (!titulo) return;
+    const texto = bloco.text().replace(/\s+/g, ' ').trim();
+    const data = parseDataBR(texto);
+    if (!dentroDaJanela(data || new Date())) return;
+    itens.push({
+      id: 'audiencia-' + urlItem,
+      origem: 'Audiência Pública',
+      data: data || new Date(),
+      dataTexto: data ? formatarData(data) : '-',
+      titulo,
+      descricao: texto.slice(0, 500) || 'Audiência pública da CMPA usada como camada de agenda do Radar de Pautas.',
+      proponente: 'CMPA',
+      url: urlItem
+    });
+  });
+  return itens.slice(0, 10);
+}
+
 async function enviarEmail(novas) {
+  if (DRY_RUN) {
+    console.log('DRY_RUN ativo. Email nao sera enviado.');
+    for (const p of novas) {
+      console.log('- ' + p.dataTexto + ' | ' + p.origem + ' | ' + p.titulo + ' | ' + p.url);
+    }
+    return;
+  }
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: EMAIL_REMETENTE, pass: EMAIL_SENHA }
@@ -140,8 +211,8 @@ async function enviarEmail(novas) {
   const body = [
     '<div style="font-family:Arial,sans-serif;max-width:1000px;margin:0 auto">',
     '<h2 style="color:#1a3a5c;border-bottom:2px solid #1a3a5c;padding-bottom:8px">Radar de Pautas CMPA — ' + novas.length + ' pauta(s) nova(s)</h2>',
-    '<p style="color:#555">Fontes: sessões plenárias da CMPA e Portal Transparência / pautas de reuniões de comissões.</p>',
-    '<p style="color:#7a4a00;background:#fff7e6;border:1px solid #ffd58a;padding:10px;border-radius:4px">Comissões entram como Radar de agenda/pauta. Plenário será a próxima camada para Pauta Analisada/Mesa, porque o detalhe da sessão contém itens legislativos parseáveis.</p>',
+    '<p style="color:#555">Fontes: sessões plenárias, Portal Transparência / pautas de reuniões de comissões, audiências públicas e notícias institucionais da CMPA.</p>',
+    '<p style="color:#7a4a00;background:#fff7e6;border:1px solid #ffd58a;padding:10px;border-radius:4px">Comissões, audiências e notícias entram como Radar de agenda/pauta. Plenário será a próxima camada para Pauta Analisada/Mesa, porque o detalhe da sessão contém itens legislativos parseáveis.</p>',
     '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#1a3a5c;color:white">',
     '<th style="padding:10px;text-align:left">Data</th><th style="padding:10px;text-align:left">Origem</th><th style="padding:10px;text-align:left">Título</th><th style="padding:10px;text-align:left">Descrição</th><th style="padding:10px;text-align:left">Link</th>',
     '</tr></thead><tbody>' + rows + '</tbody></table></div>'
@@ -159,17 +230,19 @@ async function enviarEmail(novas) {
   console.log('Iniciando Radar de Pautas CMPA...');
   const estado = carregarEstado();
   const vistos = new Set(estado.pautas_vistas || []);
-  const pautas = (await Promise.all([buscarPlenario(), buscarComissoes()]))
+  const pautas = (await Promise.all([buscarPlenario(), buscarComissoes(), buscarAudienciasPublicas(), buscarNoticiasInstitucionais()]))
     .flat()
     .sort(function (a, b) { return a.data - b.data; });
   const novas = pautas.filter(function (p) { return !vistos.has(p.id); });
   console.log('Pautas futuras na janela: ' + pautas.length + '; novas: ' + novas.length);
   if (novas.length) {
     await enviarEmail(novas);
-    for (const pauta of novas) vistos.add(pauta.id);
-    estado.pautas_vistas = Array.from(vistos);
-    estado.ultima_execucao = new Date().toISOString();
-    salvarEstado(estado);
+    if (!DRY_RUN) {
+      for (const pauta of novas) vistos.add(pauta.id);
+      estado.pautas_vistas = Array.from(vistos);
+      estado.ultima_execucao = new Date().toISOString();
+      salvarEstado(estado);
+    }
   } else {
     console.log('Sem pautas novas na janela. Nada a enviar.');
   }
